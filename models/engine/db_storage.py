@@ -15,7 +15,7 @@ from os import getenv
 import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import scoped_session, sessionmaker
-from sqlalchemy import func
+
 
 classes = {"Amenity": Amenity, "City": City,
            "Place": Place, "Review": Review, "State": State, "User": User}
@@ -76,14 +76,23 @@ class DBStorage:
         """call remove() method on the private session attribute"""
         self.__session.remove()
 
-    def get(self, cls, id):
-        """A method to recover an object"""
-        obj = self.__session.query(cls).get(id)
-        if obj is None:
-            return None
-        return obj
+    def get(self, cls=None, id=None):
+        """Returns the object based on the class and its ID,
+            or None if not found"""
+        objs = self.all(cls)
+        for val in objs.values():
+            if val.id == id:
+                return val
+        return None
 
     def count(self, cls=None):
-        """Returns the number of stored objects matching the given class"""
-        obj = self.all(cls)
-        return (len(obj))
+        """Returns the number of objects in storage matching
+            the given class. If no class is passed, returns the
+            count of all objects in storage."""
+        if cls is not None:
+            try:
+                return len(self.all(cls.__name__))
+            except Exception:
+                return None
+        else:
+            return len(self.all())
