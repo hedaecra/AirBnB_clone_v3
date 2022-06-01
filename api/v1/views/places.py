@@ -1,96 +1,75 @@
 #!/usr/bin/python3
-"""Blueprint and routes"""
-from flask import request, abort, jsonify
-from api.v1.app import *
+"""
+File to work with Places
+"""
+
+from models.base_model import *
 from api.v1.views import app_views
 from models import storage
+from models.place import *
 from models.city import City
-from models.place import Place
 from models.user import User
-from models.state import State
-from api.v1.views.cities import get_state_and_city
+from flask import jsonify, abort, request, make_response
 
 
-def validate(cls, place_id):
-    """ validate if query have id to reference """
-    try:
-        valid = storage.get(cls, place_id)
-        valid.to_dict()
-    except Exception:
-        abort(404)
-    return valid
-
-
-def get_places(city_id, place_id):
-    """ get all places """
-    if (place_id is not None):
-        get_place = validate(Place, place_id).to_dict()
-        return jsonify(get_place)
+@app_views.route('/cities/<city_id>/places', strict_slashes=False,
+                 methods=['GET', 'POST'])
+def places_by_city(city_id):
+    """Function that retrieve and save a new city"""
+    places = storage.all('Place').values()
     city = storage.get(City, city_id)
-    try:
-        all_places = city.places
-    except Exception:
-        abort(404)
-    places = []
-    for place in all_places:
-        places.append(place.to_dict())
-    return jsonify(places)
+    ls = []
+    if city:
+        for place in places:
+            if place.city_id == city_id:
+                ls.append(place.to_dict())
+        if request.method == "GET":
+            return jsonify(ls)
+        elif request.method == "POST":
+            if not request.json:
+                return make_response(jsonify(
+                                     {'error': "Not a JSON"}), 400)
+            elif 'user_id' not in request.json:
+                return make_response(jsonify(
+                                     {'error': "Missing user_id"}), 400)
+            elif 'name' not in request.json:
+                return make_response(jsonify(
+                                     {'error': "Missing name"}), 400)
+            else:
+                if storage.get(User, request.json['user_id']) is None:
+                    abort(404)
+                else:
+                    json = request.json
+                    json['city_id'] = city_id
+                    new = Place(**json)
+                    new.save()
+                    return make_response(new.to_dict(), 201)
+    abort(404)
 
 
-def delete_place(place_id):
-    """ delete place request """
-    place = validate(Place, place_id)
-    storage.delete(place)
-    storage.save()
-    response = {}
-    return jsonify(response)
-
-
-def create_place(request, city_id):
-    """ create place """
-    validate(City, city_id)
-    request_json = request.get_json()
-    if (request_json is None):
-        abort(400, 'Not a JSON')
-    try:
-        user_id = request_json['user_id']
-    except KeyError:
-        abort(400, "Missing user_id")
-    validate(User, user_id)
-    try:
-        place_name = body_request['name']
-    except KeyError:
-        abort(400, "Missing name")
-    place = Place(name=place_name, city_id=city_id, user_id=user_id)
-    storage.new(place)
-    storage.save()
-    return jsonify(place.to_dict())
-
-
-def update_place(place_id, request):
-    """ update place """
-    get_place = validate(Place, place_id)
-    request_json = request.get_json()
-    if (request_json is None):
-        abort(400, 'Not a JSON')
-    for key, value in request_json.items():
-        if (key not in ('id', 'created_at', 'updated_at')):
-            setattr(get_place, key, value)
-        storage.save()
-        return jsonify(get_place.to_dict())
-
-
-@app_views.route('/cities/<city_id>/places', methods=['GET', 'POST'],
-                 defaults={'place_id': None}, strict_slashes=False)
-@app_views.route('/places/<place_id>', defaults={'city_id': None},
+@app_views.route('/places/<place_id>', strict_slashes=False,
                  methods=['GET', 'DELETE', 'PUT'])
-def places(city_id, place_id):
-    """ Switch to select function """
-    if (request.method == "GET"):
-        return get_places(city_id, place_id)
-    elif request.method == "DELETE":
-        return delete_place(place_id)
-    elif request.method == "POST":
-        return create_place(request, city_id), 201
-    elif request.method == 'PUT':
-        return update_place(place_id, request), 200
+def place(place_id):
+    """Function that retrieve, delete and put a place"""
+    place = storage.get(Place, place_id)
+    if place:
+        if request.method == "GET":
+            return place.to_dict()
+        elif request.method == "DELETE":
+            storage.delete(place)
+            storage.save()
+            return {}
+        elif request.method == "PUT":
+            if not request.json:
+                return make_response(jsonify({'error': "Not a JSON"}), 400)
+            else:
+                json = request.json
+                for key, value in json.items():
+                    if key != 'id' and key != 'user_id' and\
+                       key != 'city_id' and key != 'created_at' and\
+                       key != "updated_at":
+                        setattr(place, key, value)
+                place.updated_at = datetime.utcnow()
+                storage.save()
+                return make_response(place.to_dict(), 200)
+    abort(404)
