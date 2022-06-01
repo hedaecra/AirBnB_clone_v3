@@ -68,42 +68,31 @@ test_db_storage.py'])
                             "{:s} method needs a docstring".format(func[0]))
 
 
-class TestFileStorage(unittest.TestCase):
-    """Test the FileStorage class"""
-    @unittest.skipIf(models.storage_t != 'db', "not testing db storage")
-    def test_all_returns_dict(self):
-        """Test that all returns a dictionaty"""
-        self.assertIs(type(models.storage.all()), dict)
+class TestDBStorage(unittest.TestCase):
+    """Test the DBStorage class"""
 
-    @unittest.skipIf(models.storage_t != 'db', "not testing db storage")
-    def test_all_no_class(self):
-        """Test that all returns all rows when no class is passed"""
+    @unittest.skipIf(os.getenv('HBNB_TYPE_STORAGE') != 'db',
+                     "not testing db storage")
+    def test_get(self):
+        """Test that get returns specific object, or none"""
+        new_state = State(name="Antioquia")
+        new_state.save()
+        new_user = User(email="elmamaria@rico.com", password="123456")
+        new_user.save()
+        self.assertIs(new_state, models.storage.get("State", new_state.id))
+        self.assertIs(None, models.storage.get("State", "fail"))
+        self.assertIs(None, models.storage.get("fail", "fail"))
+        self.assertIs(new_user, models.storage.get("User", new_user.id))
 
-    @unittest.skipIf(models.storage_t != 'db', "not testing db storage")
-    def test_new(self):
-        """test that new adds an object to the database"""
-
-    @unittest.skipIf(models.storage_t != 'db', "not testing db storage")
-    def test_save(self):
-        """Test that save properly saves objects to file.json"""
-
-    def test_get_db(self):
-        """ Tests method for obtaining an instance db storage"""
-        dic = {"name": "Bogota"}
-        instance = State(**dic)
-        models.storage.new(instance)
-        models.storage.save()
-        get_instance = models.storage.get(State, instance.id)
-        self.assertEqual(get_instance, instance)
-
+    @unittest.skipIf(os.getenv('HBNB_TYPE_STORAGE') != 'db',
+                     "not testing db storage")
     def test_count(self):
-        """ Tests count method db storage """
-        dic = {"name": "Vecindad"}
-        state = State(**dic)
-        models.storage.new(state)
-        dic = {"name": "Bogota", "state_id": state.id}
-        city = City(**dic)
-        models.storage.new(city)
-        models.storage.save()
-        c = models.storage.count()
-        self.assertEqual(len(models.storage.all()), c)
+        """test that new adds an object to the database"""
+        initial_count = models.storage.count()
+        self.assertEqual(models.storage.count("fail"), 0)
+        new_state = State(name="Tangamandapio")
+        new_state.save()
+        new_user = User(email="elmamaria@rico.com", password="123456")
+        new_user.save()
+        self.assertEqual(models.storage.count("State"), initial_count + 1)
+        self.assertEqual(models.storage.count(), initial_count + 2)
